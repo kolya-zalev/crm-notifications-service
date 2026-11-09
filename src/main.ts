@@ -1,6 +1,15 @@
 import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
-import { MicroserviceOptions, Transport } from '@nestjs/microservices';
-import { RABBIT_URL, NOTIFICATIONS_QUEUE } from '@crm/shared';
-import { HttpToRpcExceptionFilter } from '@crm/shared';
+import { NotificationsService } from './notifications.service';
+import { NotificationsServiceModule } from './notifications-service.module';
 
+async function bootstrap() {
+  const app = await NestFactory.createApplicationContext(
+    NotificationsServiceModule,
+  );
+  const notificationsService = app.get(NotificationsService);
+
+  await app.close();
+}
+
+bootstrap();
