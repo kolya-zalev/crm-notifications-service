@@ -1,6 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import type { Actor } from '@crm/shared';
-import { notificationTypes, type NotificationType } from '@crm/shared';
+import {
+  eventsNotifications,
+  notificationTypes,
+  type NotificationType,
+} from '@crm/shared';
 import type { NotificationDto, NotificationListDto } from '@crm/shared';
 import { permissions, type Permission } from '@crm/shared';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -13,14 +17,17 @@ import {
   TaskCreatedEvent,
   TaskDeletedEvent,
 } from '@crm/shared';
-
+import { GatewayEventsClient } from './gateway-events.client';
 const notificationsLimit = 20;
 
 @Injectable()
 export class NotificationsService {
+  private readonly logger = new Logger(NotificationsService.name);
+
   constructor(
     @InjectRepository(Notifications)
     private readonly repo: Repository<Notifications>,
+    private readonly gateway: GatewayEventsClient,
   ) {}
 
   private toDto(row: Notifications): NotificationDto {
@@ -90,8 +97,16 @@ export class NotificationsService {
       actorName: input.actor.name,
     });
     const savedRow = await this.repo.save(row);
-
-    return this.toDto(savedRow);
+    const dto = this.toDto(savedRow);
+    try {
+      await this.gateway.emit(eventsNotifications.notificationCreated, {
+        userId: input.userId,
+        notification: dto,
+      });
+    } catch {
+      this.logger.warn("The message wasn't send to user");
+    }
+    return dto;
   }
   private async createForLeaders(input: {
     type: NotificationType;
